@@ -27,6 +27,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+MAX_STUDENTS_PER_COURSE = 20
+
 
 # Application definition
 
@@ -135,5 +137,3 @@ REST_FRAMEWORK = {
     ],
     'TEST_REQUEST_DEFAULT_FORMAT': 'json',
 }
-
-MAX_STUDENTS_PER_COURSE = 20

@@ -1,8 +1,7 @@
-from unittest.mock import MagicMock
+from unittest.mock import Mock
 
 import pytest
 from model_bakery import baker
-from django.core.exceptions import ValidationError
 from rest_framework.test import APIClient
 
 from students.models import Course, Student
@@ -45,11 +44,12 @@ def student_factory():
 
 
 @pytest.fixture
-def max_students_settings(settings):
+def settings_with_max_students(settings):
     """
     Фикстура для MAX_STUDENTS_PER_COURSE
     """
-    return settings.MAX_STUDENTS_PER_COURSE
+    settings.MAX_STUDENTS_PER_COURSE = 20
+    return settings
 
 
 @pytest.mark.django_db
@@ -175,40 +175,23 @@ def test_delete_course(api_client, course_factory):
     ).exists()
 
 
-@pytest.mark.django_db
 @pytest.mark.parametrize(
-    "students_count", [
-        19,
-        20,
-        21
-    ]
+    'students_count, response_status',
+    [(25, 400), (15, 201), (20, 201)]
 )
-def test_max_students_per_course(student_factory,  course_factory,
-                                 max_students_settings, students_count):
+@pytest.mark.django_db
+def test_max_students(settings_with_max_students, client, course_factory,
+                      student_factory, students_count, response_status):
     """
-    Тест на ограничение кол-ва студентов на курсе
-    - Создаем макет (mock) для course.students.add через MagicMock
-    - Добавляем студентов через созданный макет
+    Тест на добавление конкретного количества студентов
     """
-    course = course_factory()
-    max_students = max_students_settings
-    students = [
-        student_factory() for _ in range(students_count)
-    ]
-    course_add_mock = MagicMock()
-    course.students.add = course_add_mock
-    course.students.add(
-        *students
+    students = student_factory(
+        _quantity=students_count
     )
-    api_client = APIClient()
-    response = api_client.get(
-        '/api/v1/courses/'
-    )
-    try:
-        assert course.students.count() == students_count
-        assert response.status_code == 200
-    except ValidationError as exc_info:
-        error_message = exc_info.value.message_dict.get('__all__')[0]
-        expected_error = f"Maximum number of students per course - {max_students}"
-        assert error_message == expected_error
-        assert response.status_code == 400
+    response = client.post(
+        '/api/v1/courses/',
+        data={
+            'name': 'Test course',
+            'students': [i.id for i in students]
+        })
+    assert response.status_code == response_status
